@@ -1,53 +1,60 @@
-# Advanced AntiAutoTotem Skript
+# AntiAutoTotem Skript
 
 options:
     cooldown: 10 seconds  # Cooldown period between totem uses
-    cooldownMessage: &cYour totem is on cooldown!  # Message shown when a totem is on cooldown
+    cooldownMessage: &cYour Totem of Undying is on cooldown!  # Message when a totem is on cooldown
     cooldownBypassPermission: antitotem.bypass  # Permission to bypass the cooldown
     logUsage: true  # Log totem usage to the console
     maxTotemUses: 3  # Maximum allowed totem uses within the cooldown window
-    warningMessage: &cSuspicious behavior detected!  # Message sent when suspicious activity is detected
+    warningMessage: &cSuspicious behavior detected!  # Message to send when suspicious activity is detected
+    resetOnDeath: true  # Reset cooldown and usage count on death
 
 variables:
-    {totemCooldowns::*} = 0
-    {totemUsageCount::*} = 0
+    {totemCooldown::%player%} = 0  # Stores cooldown time for each player
+    {totemUsageCount::%player%} = 0  # Stores the number of totem uses for each player
 
-# Check if the player is using a totem and if it should be allowed
+# Handle Totem of Undying usage
 on damage of player:
-    if damage is greater than or equal to victim's health:
-        if victim's tool is a Totem of Undying:
-            if victim's inventory contains a Totem of Undying:
+    damage is greater than or equal to victim's health
+    victim's inventory contains a Totem of Undying
+    victim's tool is a Totem of Undying
 
-                if victim has permission "{@cooldownBypassPermission}":
-                    if {@logUsage} is true:
-                        broadcast "&e[AntiAutoTotem] &7%victim% used a totem (bypassed cooldown)."
+    if victim has permission "{@cooldownBypassPermission}":
+        if {@logUsage} is true:
+            broadcast "&e[AntiAutoTotem] &7%victim% used a totem (bypassed cooldown)."
+    else:
+        if {totemCooldown::%victim%} is less than now:
+            if {totemUsageCount::%victim%} is not set:
+                set {totemUsageCount::%victim%} to 1
+            else:
+                add 1 to {totemUsageCount::%victim%}
+            
+            if {totemUsageCount::%victim%} is greater than {@maxTotemUses}:
+                cancel event
+                send "{@warningMessage}" to victim
+                if {@logUsage} is true:
+                    broadcast "&e[AntiAutoTotem] &7%victim% triggered suspicious behavior detection."
+            else:
+                # Set a new cooldown and allow totem usage
+                set {totemCooldown::%victim%} to now + {@cooldown}
+                if {@logUsage} is true:
+                    broadcast "&e[AntiAutoTotem] &7%victim% used a Totem of Undying."
 
-                else:
-                    if {totemCooldowns::%victim%} is not set or {totemCooldowns::%victim%} is less than or equal to now:
-                        if {totemUsageCount::%victim%} is not set:
-                            set {totemUsageCount::%victim%} to 1
-                        else:
-                            add 1 to {totemUsageCount::%victim%}
-                        
-                        if {totemUsageCount::%victim%} is greater than {@maxTotemUses}:
-                            cancel event
-                            send "{@warningMessage}" to victim
-                            if {@logUsage} is true:
-                                broadcast "&e[AntiAutoTotem] &7%victim% triggered suspicious behavior detection."
-                        else:
-                            # Set a new cooldown and allow totem usage
-                            set {totemCooldowns::%victim%} to now + {@cooldown}
-                            if {@logUsage} is true:
-                                broadcast "&e[AntiAutoTotem] &7%victim% used a totem."
+        else:
+            cancel event
+            send "{@cooldownMessage}" to victim
+            if {@logUsage} is true:
+                broadcast "&e[AntiAutoTotem] &7%victim% attempted to use a Totem of Undying but it was on cooldown."
 
-                    else:
-                        # Cancel totem usage if on cooldown
-                        cancel event
-                        send "{@cooldownMessage}" to victim
-                        if {@logUsage} is true:
-                            broadcast "&e[AntiAutoTotem] &7%victim% tried to use a totem but it was on cooldown."
-
-# Reset cooldown and usage count on player death
+# Reset cooldown and usage count on death
 on death of player:
-    delete {totemCooldowns::%victim%}
-    delete {totemUsageCount::%victim%}
+    if {@resetOnDeath} is true:
+        delete {totemCooldown::%victim%}
+        delete {totemUsageCount::%victim%}
+
+# Reset usage count after cooldown expires
+on script load:
+    loop all players:
+        if {totemUsageCount::%loop-player%} is set:
+            if {totemCooldown::%loop-player%} is less than now:
+                delete {totemUsageCount::%loop-player%}
